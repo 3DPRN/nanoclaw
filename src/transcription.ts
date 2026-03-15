@@ -10,11 +10,15 @@ import {
   WASocket,
 } from '@whiskeysockets/baileys';
 
+import { readEnvFile } from './env.js';
+
 const execFileAsync = promisify(execFile);
 
-const WHISPER_BIN = process.env.WHISPER_BIN || 'whisper-cli';
+const envVars = readEnvFile(['WHISPER_BIN', 'WHISPER_MODEL']);
+const WHISPER_BIN = process.env.WHISPER_BIN || envVars.WHISPER_BIN || 'whisper-cli';
 const WHISPER_MODEL =
   process.env.WHISPER_MODEL ||
+  envVars.WHISPER_MODEL ||
   path.join(process.cwd(), 'data', 'models', 'ggml-base.bin');
 
 const FALLBACK_MESSAGE = '[Voice Message - transcription unavailable]';
