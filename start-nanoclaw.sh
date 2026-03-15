@@ -36,4 +36,15 @@ echo "Logs: tail -f /mnt/a/AI/NanoClaw/logs/nanoclaw.log"
   curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     -d "chat_id=6495119053" \
     -d "text=Claw is online and ready." > /dev/null 2>&1
+
+  # Wait for service to be fully ready, then trigger morning marketing briefing
+  sleep 30
+  mkdir -p "/mnt/a/AI/NanoClaw/data/ipc/telegram_marketing/messages"
+  cat > "/mnt/a/AI/NanoClaw/data/ipc/telegram_marketing/messages/morning-briefing-$(date +%s).json" << 'BRIEFING'
+{
+  "type": "message",
+  "chatJid": "tg:-1003606064363",
+  "text": "Buongiorno team! È ora del briefing mattutino.\n\nCrea un team con:\n• un Analista Competitor — deve cercare sul web le ultime notizie, annunci e novità dei competitor principali (Bambu Lab, Creality, Prusa, Raise3D, UltiMaker, Markforged, Stratasys, Formlabs) nelle ultime 24 ore\n• un Trend Scout — deve cercare su YouTube, LinkedIn, e altri social gli ultimi video e contenuti sulla stampa 3D professionale/industriale pubblicati nelle ultime 24 ore, con focus su nuovi materiali, tecnologie e applicazioni\n\nOgni agente deve mandare i risultati nel gruppo con send_message. Alla fine fai una sintesi con i punti più rilevanti per 3DPRN."
+}
+BRIEFING
 ) &
