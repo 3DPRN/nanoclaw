@@ -595,6 +595,15 @@ async function main(): Promise<void> {
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    // Send shutdown notification on Telegram before disconnecting
+    const tgChannel = channels.find((ch) => ch.name === 'telegram');
+    if (tgChannel) {
+      try {
+        await tgChannel.sendMessage('tg:6495119053', 'Claw si sta spegnendo. A presto! 👋');
+      } catch {
+        // Best effort — don't block shutdown
+      }
+    }
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
