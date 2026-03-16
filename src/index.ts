@@ -58,6 +58,7 @@ import {
   shouldDropMessage,
 } from './sender-allowlist.js';
 import { startSchedulerLoop } from './task-scheduler.js';
+import { startTokenRefresh, stopTokenRefresh } from './token-refresh.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { parseImageReferences } from './image.js';
 import { StatusTracker } from './status-tracker.js';
@@ -586,6 +587,9 @@ async function main(): Promise<void> {
   loadState();
   restoreRemoteControl();
 
+  // Start periodic OAuth token refresh (reads from ~/.claude/.credentials.json)
+  startTokenRefresh();
+
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(
     CREDENTIAL_PROXY_PORT,
@@ -599,11 +603,15 @@ async function main(): Promise<void> {
     const tgChannel = channels.find((ch) => ch.name === 'telegram');
     if (tgChannel) {
       try {
-        await tgChannel.sendMessage('tg:6495119053', 'Claw si sta spegnendo. A presto! 👋');
+        await tgChannel.sendMessage(
+          'tg:6495119053',
+          'Claw si sta spegnendo. A presto! 👋',
+        );
       } catch {
         // Best effort — don't block shutdown
       }
     }
+    stopTokenRefresh();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
