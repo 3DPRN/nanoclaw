@@ -9,7 +9,11 @@ import os from 'os';
 
 import { logger } from './logger.js';
 
-const CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+const CREDENTIALS_PATH = path.join(
+  os.homedir(),
+  '.claude',
+  '.credentials.json',
+);
 const ENV_PATH = path.join(process.cwd(), '.env');
 const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
