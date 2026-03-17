@@ -46,8 +46,13 @@ export function startCredentialProxy(
 
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
+      logger.debug({ method: req.method, url: req.url, remote: req.socket.remoteAddress }, 'Proxy request received');
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c));
+      req.on('error', (err) => {
+        logger.error({ err, url: req.url }, 'Proxy client request error');
+        if (!res.headersSent) { res.writeHead(400); res.end('Bad Request'); }
+      });
       req.on('end', () => {
         const body = Buffer.concat(chunks);
         // Re-read secrets on each request to pick up refreshed tokens

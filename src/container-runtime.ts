@@ -26,9 +26,9 @@ export const PROXY_BIND_HOST =
 function detectProxyBindHost(): string {
   if (os.platform() === 'darwin') return '127.0.0.1';
 
-  // WSL uses Docker Desktop (same VM routing as macOS) — loopback is correct.
-  // Check /proc filesystem, not env vars — WSL_DISTRO_NAME isn't set under systemd.
-  if (fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop')) return '127.0.0.1';
+  // WSL2 with Docker Desktop: host.docker.internal maps to a private IP on the
+  // Docker Desktop vEthernet, not loopback — bind all interfaces so it's reachable.
+  if (fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop')) return '0.0.0.0';
 
   // Bare-metal Linux: bind to the docker0 bridge IP instead of 0.0.0.0
   const ifaces = os.networkInterfaces();
@@ -42,11 +42,37 @@ function detectProxyBindHost(): string {
 
 /** CLI args needed for the container to resolve the host gateway. */
 export function hostGatewayArgs(): string[] {
-  // On Linux, host.docker.internal isn't built-in — add it explicitly
+  // On Linux, host.docker.internal isn't built-in — add it explicitly.
+  // Docker Desktop on WSL2 adds both IPv4 and IPv6 entries for "host-gateway",
+  // but container networks often lack IPv6 routing to the host. Node's undici
+  // tries IPv6 first and fails with UND_ERR_SOCKET instead of falling back.
+  // Resolve the actual IPv4 address so containers always use IPv4.
   if (os.platform() === 'linux') {
-    return ['--add-host=host.docker.internal:host-gateway'];
+    const hostIp = resolveHostGatewayIPv4();
+    return [`--add-host=host.docker.internal:${hostIp}`];
   }
   return [];
+}
+
+/**
+ * Resolve the IPv4 address that "host-gateway" maps to.
+ * Spins up a tiny container to resolve the actual IPv4 address, avoiding the
+ * IPv6 entry that Docker Desktop adds (which causes UND_ERR_SOCKET in undici).
+ * Falls back to "host-gateway" if detection fails.
+ */
+function resolveHostGatewayIPv4(): string {
+  try {
+    const out = execSync(
+      `${CONTAINER_RUNTIME_BIN} run --rm --add-host=h:host-gateway alpine sh -c "getent ahostsv4 h | head -1 | awk '{print \\$1}'"`,
+      { stdio: 'pipe', timeout: 15000 },
+    ).toString().trim();
+    if (out && /^\d+\.\d+\.\d+\.\d+$/.test(out)) {
+      logger.info({ hostGatewayIp: out }, 'Resolved host-gateway IPv4');
+      return out;
+    }
+  } catch { /* ignore */ }
+
+  return 'host-gateway';
 }
 
 /** Returns CLI args for a readonly bind mount. */

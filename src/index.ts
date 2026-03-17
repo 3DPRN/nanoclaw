@@ -743,6 +743,20 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Send startup greeting to all Telegram groups
+  const tgStartup = channels.find((ch) => ch.name === 'telegram');
+  if (tgStartup) {
+    for (const [jid, group] of Object.entries(registeredGroups)) {
+      if (jid.startsWith('tg:')) {
+        tgStartup
+          .sendMessage(jid, `Claw è online! 🟢`)
+          .catch((err: unknown) =>
+            logger.warn({ jid, err }, 'Failed to send startup greeting'),
+          );
+      }
+    }
+  }
+
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
     registeredGroups: () => registeredGroups,
