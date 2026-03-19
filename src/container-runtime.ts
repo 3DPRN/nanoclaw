@@ -65,12 +65,16 @@ function resolveHostGatewayIPv4(): string {
     const out = execSync(
       `${CONTAINER_RUNTIME_BIN} run --rm --add-host=h:host-gateway alpine sh -c "getent ahostsv4 h | head -1 | awk '{print \\$1}'"`,
       { stdio: 'pipe', timeout: 15000 },
-    ).toString().trim();
+    )
+      .toString()
+      .trim();
     if (out && /^\d+\.\d+\.\d+\.\d+$/.test(out)) {
       logger.info({ hostGatewayIp: out }, 'Resolved host-gateway IPv4');
       return out;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return 'host-gateway';
 }

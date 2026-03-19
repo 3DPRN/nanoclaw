@@ -290,6 +290,27 @@ export class TelegramChannel implements Channel {
       logger.debug({ jid, err }, 'Failed to send Telegram typing indicator');
     }
   }
+
+  async sendReaction(
+    chatJid: string,
+    messageKey: { id: string; remoteJid: string; fromMe?: boolean },
+    emoji: string,
+  ): Promise<void> {
+    if (!this.bot) return;
+    try {
+      const chatId = chatJid.replace(/^tg:/, '');
+      const messageId = parseInt(messageKey.id, 10);
+      if (isNaN(messageId)) return;
+      await this.bot.api.setMessageReaction(chatId, messageId, [
+        { type: 'emoji', emoji: emoji as any },
+      ]);
+    } catch (err) {
+      logger.debug(
+        { chatJid, messageId: messageKey.id, emoji, err },
+        'Failed to send Telegram reaction',
+      );
+    }
+  }
 }
 
 registerChannel('telegram', (opts: ChannelOpts) => {

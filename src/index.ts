@@ -4,6 +4,7 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  DATA_DIR,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
   TIMEZONE,
@@ -75,6 +76,17 @@ let lastAgentTimestamp: Record<string, string> = {};
 // Used to roll back if the container dies after piping.
 let cursorBeforePipe: Record<string, string> = {};
 let messageLoopRunning = false;
+
+const HEARTBEAT_PATH = path.join(DATA_DIR, 'heartbeat');
+
+/** Write current timestamp to heartbeat file so the watchdog can verify liveness. */
+function updateHeartbeat(): void {
+  try {
+    fs.writeFileSync(HEARTBEAT_PATH, Date.now().toString());
+  } catch {
+    // Best-effort — don't crash the loop for a heartbeat write failure
+  }
+}
 
 const channels: Channel[] = [];
 const queue = new GroupQueue();
@@ -183,6 +195,20 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   );
 
   if (missedMessages.length === 0) return true;
+
+  // Skip if the latest message is directed at someone else via @mention
+  {
+    const lastUserMsg = [...missedMessages]
+      .reverse()
+      .find((m) => !m.is_from_me);
+    if (lastUserMsg) {
+      const text = lastUserMsg.content.trim();
+      const atMention = text.match(/^@(\S+)/);
+      if (atMention && !TRIGGER_PATTERN.test(text)) {
+        return true; // directed at another user, skip
+      }
+    }
+  }
 
   // For non-main groups, check if trigger is required and present
   if (!isMainGroup && group.requiresTrigger !== false) {
@@ -423,6 +449,7 @@ async function startMessageLoop(): Promise<void> {
   logger.info(`NanoClaw running (trigger: @${ASSISTANT_NAME})`);
 
   while (true) {
+    updateHeartbeat();
     try {
       const jids = Object.keys(registeredGroups);
       const { messages, newTimestamp } = getNewMessages(
@@ -474,6 +501,28 @@ async function startMessageLoop(): Promise<void> {
                   isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
             );
             if (!hasTrigger) continue;
+          }
+
+          // Skip if the latest message is directed at someone else via @mention.
+          // Messages without @ or with @Franky should still be processed.
+          {
+            const lastUserMsg = [...groupMessages]
+              .reverse()
+              .find((m) => !m.is_from_me && !m.is_bot_message);
+            if (lastUserMsg) {
+              const text = lastUserMsg.content.trim();
+              const atMention = text.match(/^@(\S+)/);
+              if (
+                atMention &&
+                !TRIGGER_PATTERN.test(text)
+              ) {
+                logger.debug(
+                  { chatJid, mention: atMention[1] },
+                  'Message directed at another user, skipping',
+                );
+                continue;
+              }
+            }
           }
 
           // Mark each user message as received (status emoji)
@@ -599,16 +648,17 @@ async function main(): Promise<void> {
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
-    // Send shutdown notification on Telegram before disconnecting
+    // Send shutdown notification to all Telegram groups
     const tgChannel = channels.find((ch) => ch.name === 'telegram');
     if (tgChannel) {
-      try {
-        await tgChannel.sendMessage(
-          'tg:6495119053',
-          'Claw si sta spegnendo. A presto! 👋',
-        );
-      } catch {
-        // Best effort — don't block shutdown
+      for (const [jid] of Object.entries(registeredGroups)) {
+        if (jid.startsWith('tg:')) {
+          try {
+            await tgChannel.sendMessage(jid, 'Mi spengo, alla prossima.');
+          } catch {
+            // Best effort — don't block shutdown
+          }
+        }
       }
     }
     stopTokenRefresh();
@@ -749,7 +799,7 @@ async function main(): Promise<void> {
     for (const [jid, group] of Object.entries(registeredGroups)) {
       if (jid.startsWith('tg:')) {
         tgStartup
-          .sendMessage(jid, `Claw è online! 🟢`)
+          .sendMessage(jid, `Sono online ai vostri ordini.`)
           .catch((err: unknown) =>
             logger.warn({ jid, err }, 'Failed to send startup greeting'),
           );

@@ -13,9 +13,24 @@
 import { createServer, Server } from 'http';
 import { request as httpsRequest } from 'https';
 import { request as httpRequest, RequestOptions } from 'http';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+
+const CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+
+/** Read the live OAuth token directly from Claude Code's credentials file. */
+function readLiveOAuthToken(): string | null {
+  try {
+    const creds = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
+    return creds?.claudeAiOauth?.accessToken || null;
+  } catch {
+    return null;
+  }
+}
 
 export type AuthMode = 'api-key' | 'oauth';
 
@@ -27,14 +42,21 @@ export function startCredentialProxy(
   port: number,
   host = '127.0.0.1',
 ): Promise<Server> {
-  // Read secrets fresh on each request so token refreshes are picked up
+  // Read secrets fresh on each request so token refreshes are picked up.
+  // OAuth token is read directly from Claude Code's credentials.json
+  // to avoid stale tokens in .env.
   function getSecrets() {
-    return readEnvFile([
+    const env = readEnvFile([
       'ANTHROPIC_API_KEY',
       'CLAUDE_CODE_OAUTH_TOKEN',
       'ANTHROPIC_AUTH_TOKEN',
       'ANTHROPIC_BASE_URL',
     ]);
+    const liveToken = readLiveOAuthToken();
+    if (liveToken) {
+      env.CLAUDE_CODE_OAUTH_TOKEN = liveToken;
+    }
+    return env;
   }
 
   const initialSecrets = getSecrets();
@@ -46,12 +68,18 @@ export function startCredentialProxy(
 
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
-      logger.debug({ method: req.method, url: req.url, remote: req.socket.remoteAddress }, 'Proxy request received');
+      logger.debug(
+        { method: req.method, url: req.url, remote: req.socket.remoteAddress },
+        'Proxy request received',
+      );
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c));
       req.on('error', (err) => {
         logger.error({ err, url: req.url }, 'Proxy client request error');
-        if (!res.headersSent) { res.writeHead(400); res.end('Bad Request'); }
+        if (!res.headersSent) {
+          res.writeHead(400);
+          res.end('Bad Request');
+        }
       });
       req.on('end', () => {
         const body = Buffer.concat(chunks);

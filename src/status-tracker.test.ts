@@ -112,11 +112,11 @@ describe('StatusTracker', () => {
     });
   });
 
-  describe('main group gating', () => {
-    it('ignores messages from non-main groups', async () => {
+  describe('all groups tracking', () => {
+    it('tracks messages from non-main groups too', async () => {
       tracker.markReceived('msg1', 'group@g.us', false);
       await tracker.flush();
-      expect(deps.sendReaction).not.toHaveBeenCalled();
+      expect(deps.sendReaction).toHaveBeenCalledTimes(1);
     });
   });
 
