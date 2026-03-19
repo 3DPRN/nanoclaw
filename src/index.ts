@@ -512,10 +512,7 @@ async function startMessageLoop(): Promise<void> {
             if (lastUserMsg) {
               const text = lastUserMsg.content.trim();
               const atMention = text.match(/^@(\S+)/);
-              if (
-                atMention &&
-                !TRIGGER_PATTERN.test(text)
-              ) {
+              if (atMention && !TRIGGER_PATTERN.test(text)) {
                 logger.debug(
                   { chatJid, mention: atMention[1] },
                   'Message directed at another user, skipping',

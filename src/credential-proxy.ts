@@ -20,7 +20,11 @@ import os from 'os';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 
-const CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+const CREDENTIALS_PATH = path.join(
+  os.homedir(),
+  '.claude',
+  '.credentials.json',
+);
 
 /** Read the live OAuth token directly from Claude Code's credentials file. */
 function readLiveOAuthToken(): string | null {
