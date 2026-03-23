@@ -1,7 +1,10 @@
 import https from 'https';
 import { Api, Bot } from 'grammy';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import fs from 'fs';
+import path from 'path';
+
+import { ASSISTANT_NAME, DATA_DIR, TRIGGER_PATTERN } from '../config.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -60,6 +63,25 @@ export class TelegramChannel implements Channel {
       },
     });
 
+    // Help command — shows assistant description and all available commands
+    this.bot.command('help', (ctx) => {
+      const helpText = [
+        `*${ASSISTANT_NAME}* — Assistente AI personale`,
+        `Powered by Claude (Anthropic)`,
+        ``,
+        `*Comandi disponibili:*`,
+        `/help — Mostra questo messaggio`,
+        `/ping — Verifica che il bot sia online`,
+        `/chatid — Mostra l'ID della chat corrente`,
+        `/reboot — Riavvia il servizio (solo admin)`,
+        ``,
+        `*Come interagire:*`,
+        `• In chat privata: scrivi direttamente`,
+        `• Nei gruppi: menziona @${ASSISTANT_NAME} nel messaggio`,
+      ].join('\n');
+      ctx.reply(helpText, { parse_mode: 'Markdown' });
+    });
+
     // Command to get chat ID (useful for registration)
     this.bot.command('chatid', (ctx) => {
       const chatId = ctx.chat.id;
@@ -80,9 +102,32 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
+    // Command to reboot NanoClaw — only from registered main group or its members
+    this.bot.command('reboot', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groups = this.opts.registeredGroups();
+      const group = groups[chatJid];
+
+      // Allow from main groups or private chats (DM to the bot)
+      if (group?.isMain || ctx.chat.type === 'private') {
+        await ctx.reply('Riavvio in corso... (circa 10 secondi)');
+        // Save reboot source so we can confirm after restart
+        const rebootFile = path.join(DATA_DIR, 'reboot-source.json');
+        fs.writeFileSync(rebootFile, JSON.stringify({ chatId: ctx.chat.id }));
+        logger.info(
+          { sender: ctx.from?.first_name, chatJid },
+          'Reboot requested via /reboot command',
+        );
+        // Give the reply time to send, then exit. The restart loop will bring us back.
+        setTimeout(() => process.exit(0), 1000);
+      } else {
+        await ctx.reply('Non autorizzato.');
+      }
+    });
+
     // Telegram bot commands handled above — skip them in the general handler
     // so they don't also get stored as messages. All other /commands flow through.
-    const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
+    const TELEGRAM_BOT_COMMANDS = new Set(['help', 'chatid', 'ping', 'reboot']);
 
     this.bot.on('message:text', async (ctx) => {
       if (ctx.message.text.startsWith('/')) {
@@ -231,6 +276,27 @@ export class TelegramChannel implements Channel {
           console.log(
             `  Send /chatid to the bot to get a chat's registration ID\n`,
           );
+
+          // Send reboot confirmation if this startup follows a /reboot command
+          const rebootFile = path.join(DATA_DIR, 'reboot-source.json');
+          try {
+            if (fs.existsSync(rebootFile)) {
+              const { chatId } = JSON.parse(
+                fs.readFileSync(rebootFile, 'utf-8'),
+              );
+              fs.unlinkSync(rebootFile);
+              sendTelegramMessage(
+                this.bot!.api,
+                chatId,
+                'Riavvio completato.',
+              ).catch((err) =>
+                logger.warn({ err }, 'Failed to send reboot confirmation'),
+              );
+            }
+          } catch {
+            // Best effort
+          }
+
           resolve();
         },
       });

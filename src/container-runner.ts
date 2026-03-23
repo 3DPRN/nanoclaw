@@ -29,6 +29,7 @@ import {
 import { detectAuthMode } from './credential-proxy.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
+import { forceRefreshOAuthToken } from './token-refresh.js';
 
 // Sentinel markers for robust output parsing (must match agent-runner)
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
@@ -560,6 +561,30 @@ export async function runContainerAgent(
       logger.debug({ logFile, verbose: isVerbose }, 'Container log written');
 
       if (code !== 0) {
+        // Detect OAuth 401 errors and attempt automatic token refresh
+        const isAuthError =
+          stderr.includes('OAuth token has expired') ||
+          stderr.includes('authentication_error') ||
+          (stderr.includes('401') && stderr.includes('token'));
+
+        if (isAuthError) {
+          logger.warn(
+            { group: group.name },
+            'OAuth 401 detected in container — attempting token refresh',
+          );
+          forceRefreshOAuthToken()
+            .then((refreshed) => {
+              if (refreshed) {
+                logger.info('OAuth token refreshed after 401 — next container will use new token');
+              } else {
+                logger.error(
+                  'OAuth token refresh failed — credentials.json may be missing or refresh token expired',
+                );
+              }
+            })
+            .catch((err) => logger.error({ err }, 'Token refresh error'));
+        }
+
         logger.error(
           {
             group: group.name,

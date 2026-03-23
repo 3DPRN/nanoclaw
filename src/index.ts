@@ -651,7 +651,7 @@ async function main(): Promise<void> {
       for (const [jid] of Object.entries(registeredGroups)) {
         if (jid.startsWith('tg:')) {
           try {
-            await tgChannel.sendMessage(jid, 'Mi spengo, alla prossima.');
+            await tgChannel.sendMessage(jid, 'Mi spengo...');
           } catch {
             // Best effort — don't block shutdown
           }
@@ -796,7 +796,7 @@ async function main(): Promise<void> {
     for (const [jid, group] of Object.entries(registeredGroups)) {
       if (jid.startsWith('tg:')) {
         tgStartup
-          .sendMessage(jid, `Sono online ai vostri ordini.`)
+          .sendMessage(jid, `Ciao a tutti, sono di nuovo online`)
           .catch((err: unknown) =>
             logger.warn({ jid, err }, 'Failed to send startup greeting'),
           );

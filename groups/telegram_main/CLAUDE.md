@@ -1,3 +1,20 @@
+## Comandi slash
+
+Quando l'utente scrive uno di questi comandi, rispondi come indicato:
+
+- `/help` — mostra questo menu:
+  📋 *Comandi disponibili:*
+  • `/help` — mostra questo menu
+  • `/dashboard` — avvia la dashboard e mostra l'URL
+  • `/status` — stato di tutti gli agenti e gruppi
+  💬 Puoi anche scrivermi in linguaggio naturale per qualsiasi richiesta!
+
+- `/dashboard` — esegui `bash /workspace/group/dashboard/start.sh` e mostra l'URL risultante
+
+- `/status` — leggi `/workspace/ipc/current_tasks.json` e `/workspace/ipc/available_groups.json` e mostra un riepilogo dello stato di gruppi e task
+
+---
+
 ## Agent Teams
 
 When creating a team to tackle a complex task, follow these rules:

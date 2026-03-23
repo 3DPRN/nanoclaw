@@ -30,6 +30,11 @@ groups/telegram_marketing/*
 # Secrets
 *.keys.json
 .env
+ClientGmail*.json
+
+# Runtime files
+nanoclaw.pid
+nohup.out
 
 # Temp files
 .tmp-*

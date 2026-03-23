@@ -19,6 +19,7 @@ import os from 'os';
 
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+import { forceRefreshOAuthToken } from './token-refresh.js';
 
 const CREDENTIALS_PATH = path.join(
   os.homedir(),
@@ -72,7 +73,7 @@ export function startCredentialProxy(
 
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
-      logger.debug(
+      logger.info(
         { method: req.method, url: req.url, remote: req.socket.remoteAddress },
         'Proxy request received',
       );
@@ -120,6 +121,12 @@ export function startCredentialProxy(
             delete headers['authorization'];
             if (oauthToken) {
               headers['authorization'] = `Bearer ${oauthToken}`;
+              logger.info(
+                { url: req.url, tokenPrefix: oauthToken.slice(0, 20) + '...' },
+                'Proxy injected OAuth token',
+              );
+            } else {
+              logger.warn({ url: req.url }, 'Proxy: no OAuth token available');
             }
           }
         }
@@ -133,6 +140,14 @@ export function startCredentialProxy(
             headers,
           } as RequestOptions,
           (upRes) => {
+            logger.info(
+              { url: req.url, status: upRes.statusCode },
+              'Proxy upstream response',
+            );
+            // Auto-refresh token on 401 from upstream
+            if (upRes.statusCode === 401 && authMode === 'oauth') {
+              forceRefreshOAuthToken().catch(() => {});
+            }
             res.writeHead(upRes.statusCode!, upRes.headers);
             upRes.pipe(res);
           },
