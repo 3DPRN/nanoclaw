@@ -90,9 +90,7 @@ function updateEnvToken(token: string): void {
 /**
  * Exchange a refresh token for a new access token via the OAuth token endpoint.
  */
-function exchangeRefreshToken(
-  refreshToken: string,
-): Promise<{
+function exchangeRefreshToken(refreshToken: string): Promise<{
   access_token: string;
   refresh_token?: string;
   expires_in: number;
