@@ -575,7 +575,9 @@ export async function runContainerAgent(
           forceRefreshOAuthToken()
             .then((refreshed) => {
               if (refreshed) {
-                logger.info('OAuth token refreshed after 401 — next container will use new token');
+                logger.info(
+                  'OAuth token refreshed after 401 — next container will use new token',
+                );
               } else {
                 logger.error(
                   'OAuth token refresh failed — credentials.json may be missing or refresh token expired',

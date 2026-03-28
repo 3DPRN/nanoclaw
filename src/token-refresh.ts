@@ -92,7 +92,11 @@ function updateEnvToken(token: string): void {
  */
 function exchangeRefreshToken(
   refreshToken: string,
-): Promise<{ access_token: string; refresh_token?: string; expires_in: number } | null> {
+): Promise<{
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+} | null> {
   return new Promise((resolve) => {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
@@ -120,21 +124,24 @@ function exchangeRefreshToken(
           try {
             const data = JSON.parse(raw);
             if (data.error) {
-              logger.error(
-                { error: data.error },
-                'OAuth token refresh failed',
-              );
+              logger.error({ error: data.error }, 'OAuth token refresh failed');
               resolve(null);
               return;
             }
             if (!data.access_token) {
-              logger.error({ raw }, 'OAuth token refresh: no access_token in response');
+              logger.error(
+                { raw },
+                'OAuth token refresh: no access_token in response',
+              );
               resolve(null);
               return;
             }
             resolve(data);
           } catch (err) {
-            logger.error({ err, raw }, 'Failed to parse token refresh response');
+            logger.error(
+              { err, raw },
+              'Failed to parse token refresh response',
+            );
             resolve(null);
           }
         });
