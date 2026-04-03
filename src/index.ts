@@ -87,6 +87,29 @@ let messageLoopRunning = false;
 
 const HEARTBEAT_PATH = path.join(DATA_DIR, 'heartbeat');
 
+/**
+ * Mirror API messages to the corresponding Telegram group.
+ * When a message is sent to an api: JID, also forward it to the
+ * Telegram JID that shares the same folder, so the Telegram group
+ * acts as a live log of all API-triggered agent activity.
+ */
+function mirrorApiToTelegram(apiJid: string, text: string): void {
+  if (!apiJid.startsWith('api:')) return;
+  const folder = apiJid.slice(4); // strip "api:"
+  // Find the Telegram JID for the same folder
+  for (const [jid, group] of Object.entries(registeredGroups)) {
+    if (group.folder === folder && jid.startsWith('tg:')) {
+      const tgChannel = findChannel(channels, jid);
+      if (tgChannel) {
+        tgChannel.sendMessage(jid, text).catch((err) => {
+          logger.warn({ jid, err }, 'Failed to mirror API message to Telegram');
+        });
+      }
+      return;
+    }
+  }
+}
+
 /** Write current timestamp to heartbeat file so the watchdog can verify liveness. */
 function updateHeartbeat(): void {
   try {
@@ -366,6 +389,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         logger.info({ group: group.name }, `Agent output: ${raw.length} chars`);
         if (text) {
           await channel.sendMessage(chatJid, text);
+          mirrorApiToTelegram(chatJid, text);
           outputSentToUser = true;
         }
         // Only reset idle timer on actual results, not session-update markers (result: null)
@@ -907,6 +931,7 @@ async function main(): Promise<void> {
     sendMessage: (jid, text) => {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
+      mirrorApiToTelegram(jid, text);
       return channel.sendMessage(jid, text);
     },
     sendReaction: async (jid, emoji, messageId) => {

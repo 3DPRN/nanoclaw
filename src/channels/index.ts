@@ -6,8 +6,15 @@
 // gmail
 import './gmail.js';
 
+// http-api
+import './http-api.js';
+
 // slack
 
+// rocketchat
+import './rocketchat.js';
+
 // telegram
+import './telegram.js';
 
 // whatsapp
